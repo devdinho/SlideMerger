@@ -114,32 +114,31 @@ namespace SlideMergerAPINew.Services
             return false;
         }
 
-        public static void CopyFooterFromMasterToSlide(SlidePart slidePart)
+        public static void CopyFooterFromMaster(SlidePart slidePart, SlideMasterPart masterPart, long footerYStart)
         {
-            var masterPart = slidePart.SlideLayoutPart.SlideMasterPart;
-            var footerShapes = masterPart.SlideMaster.Descendants<DocumentFormat.OpenXml.Presentation.Shape>()
-                .Where(s =>
+            var footerShapes = masterPart.SlideMaster.CommonSlideData.ShapeTree
+                .OfType<DocumentFormat.OpenXml.Presentation.Shape>()
+                .Where(shape =>
                 {
-                    var ph = s.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties?
-                                .GetFirstChild<PlaceholderShape>();
-                    return ph != null && (ph.Type?.Value == PlaceholderValues.Footer ||
-                                        ph.Type?.Value == PlaceholderValues.SlideNumber ||
-                                        ph.Type?.Value == PlaceholderValues.DateAndTime);
-                }).ToList();
+                    var transform = shape.ShapeProperties?.Transform2D;
+                    if (transform == null) return false;
 
-            var slideShapeTree = slidePart.Slide.CommonSlideData.ShapeTree;
+                    var y = transform.Offset?.Y ?? 0;
+                    return y >= footerYStart;
+                })
+                .ToList();
+
+            var shapeTree = slidePart.Slide.CommonSlideData?.ShapeTree!;
 
             foreach (var footerShape in footerShapes)
             {
-                // Clona o shape
                 var clonedShape = (DocumentFormat.OpenXml.Presentation.Shape)footerShape.CloneNode(true);
 
-                // Garante um novo ID único
-                uint maxId = slideShapeTree.Elements<DocumentFormat.OpenXml.Presentation.Shape>().Select(s => s.NonVisualShapeProperties.NonVisualDrawingProperties.Id.Value).Max();
-                clonedShape.NonVisualShapeProperties.NonVisualDrawingProperties.Id = new UInt32Value(maxId + 1);
+                // (Opcional) Renomear o shape para facilitar depuração
+                clonedShape.NonVisualShapeProperties.NonVisualDrawingProperties.Name =
+                    new DocumentFormat.OpenXml.StringValue("ClonedFooter_" + Guid.NewGuid().ToString());
 
-                // Adiciona ao slide
-                slideShapeTree.Append(clonedShape);
+                shapeTree.Append(clonedShape); // Adiciona ao final → desenhado por cima
             }
 
             slidePart.Slide.Save();
@@ -261,8 +260,8 @@ namespace SlideMergerAPINew.Services
 
                     if (HasContentOverlappingFooter(slidesImgCheck[i], footerLimitY))
                     {
-                        CopyFooterFromMasterToSlide(slidesImgCheck[i]);
-
+                        // CopyFooterFromMasterToSlide(slidesImgCheck[i]);
+                        CopyFooterFromMaster(slidesImgCheck[i], masterSrc, footerLimitY - (long)(1.78 * 360000)); // Y inicial do rodapé
 
                         Console.WriteLine($"⚠️ Slide {i + 1} tem conteúdo invadindo a área do rodapé.");
                     }

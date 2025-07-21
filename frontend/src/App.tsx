@@ -7,6 +7,8 @@ import { Progress } from './components/ui/progress';
 import { Upload, Download, ArrowLeft, CheckCircle } from 'lucide-react';
 import './styles/globals.css'
 
+import logo from './assets/logo-sem-letra.png';
+
 type FormData = {
   titulo: string;
   professor: string;
@@ -159,14 +161,15 @@ export default function App() {
 
   if (state === 'form') {
     return (
+      <>
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-lg bg-white rounded-2xl shadow-lg p-8">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-900 rounded-xl mb-4">
-              <span className="text-white text-xl">APS</span>
-            </div>
-            <h2 className="text-2xl text-gray-900 mb-2">Upload de Arquivo</h2>
-            <p className="text-gray-600">Preencha os dados para processar seu arquivo</p>
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl mb-4">
+                <img src={logo} alt="Logo" className="w-16 h-16" />
+              </div>
+            <h2 className="text-2xl text-gray-900 mb-2">MBX Standardizer</h2>
+            <p className="text-gray-600">Preencha os dados para processar seu arquivo de apresentação</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -259,6 +262,7 @@ export default function App() {
           </div>
         </div>
       </div>
+      </>
     );
   }
 
@@ -267,11 +271,11 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-900 rounded-xl mb-4">
-              <span className="text-white text-xl">APS</span>
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl mb-4">
+              <img src={logo} alt="Logo" className="w-16 h-16" />
             </div>
-            <h2 className="text-2xl text-gray-900 mb-2">Processando Arquivo</h2>
-            <p className="text-gray-600">Aguarde enquanto processamos seu arquivo</p>
+            <h2 className="text-2xl text-gray-900 mb-2">Processando Apresentação</h2>
+            <p className="text-gray-600">Aguarde enquanto processamos seu apresentação</p>
           </div>
 
           <div className="space-y-6">
@@ -316,11 +320,17 @@ export default function App() {
               <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
             <h2 className="text-2xl text-gray-900 mb-2">Processamento Concluído</h2>
-            <p className="text-gray-600">Seu arquivo foi processado com sucesso!</p>
+            <p className="text-gray-600">Sua apresentação foi processada com sucesso!</p>
           </div>
 
           <div className="space-y-6">
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">MBA:</span>
+                <span className="text-gray-900">
+                  {mbaCourses.find(course => course.value === formData.curso)?.label || formData.curso}
+                </span>
+              </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Disciplina:</span>
                 <span className="text-gray-900">{formData.titulo}</span>
@@ -328,12 +338,6 @@ export default function App() {
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Professor:</span>
                 <span className="text-gray-900">{formData.professor}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">MBA:</span>
-                <span className="text-gray-900">
-                  {mbaCourses.find(course => course.value === formData.curso)?.label || formData.curso}
-                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Arquivo Original:</span>
