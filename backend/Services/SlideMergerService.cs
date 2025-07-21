@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Drawing;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Presentation;
@@ -80,6 +81,70 @@ namespace SlideMergerAPINew.Services
                 }
             }
         }
+
+        public static long GetFooterStartY(PresentationDocument doc)
+        {
+            const int cmToEmu = 360000;
+            return (long)(17.26  * cmToEmu); // rodapé começa em 17,26cm e tem 1,78cm de altura
+        }
+        public static bool HasContentOverlappingFooter(SlidePart slidePart, long footerStartY)
+        {
+            var allElements = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Presentation.Shape>()
+                .Cast<OpenXmlCompositeElement>()
+                .Concat(slidePart.Slide.Descendants<DocumentFormat.OpenXml.Drawing.Picture>());
+
+            foreach (var element in allElements)
+            {
+
+                var xfrm = element.Descendants<DocumentFormat.OpenXml.Drawing.Transform2D>().FirstOrDefault();
+                if (xfrm?.Offset != null && xfrm.Extents != null)
+                {
+                    long yStart = xfrm.Offset.Y ?? 0;
+                    long height = xfrm.Extents.Cy ?? 0;
+                    long yEnd = yStart + height;
+
+                    if (yEnd >= footerStartY)
+                    {
+                        Console.WriteLine($"Elemento tipo: {element.LocalName}, Y: {yStart / 360000.0}cm, Altura: {height / 360000.0}cm, Y final: {(yStart + height) / 360000.0}cm");
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        public static void CopyFooterFromMasterToSlide(SlidePart slidePart)
+        {
+            var masterPart = slidePart.SlideLayoutPart.SlideMasterPart;
+            var footerShapes = masterPart.SlideMaster.Descendants<DocumentFormat.OpenXml.Presentation.Shape>()
+                .Where(s =>
+                {
+                    var ph = s.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties?
+                                .GetFirstChild<PlaceholderShape>();
+                    return ph != null && (ph.Type?.Value == PlaceholderValues.Footer ||
+                                        ph.Type?.Value == PlaceholderValues.SlideNumber ||
+                                        ph.Type?.Value == PlaceholderValues.DateAndTime);
+                }).ToList();
+
+            var slideShapeTree = slidePart.Slide.CommonSlideData.ShapeTree;
+
+            foreach (var footerShape in footerShapes)
+            {
+                // Clona o shape
+                var clonedShape = (DocumentFormat.OpenXml.Presentation.Shape)footerShape.CloneNode(true);
+
+                // Garante um novo ID único
+                uint maxId = slideShapeTree.Elements<DocumentFormat.OpenXml.Presentation.Shape>().Select(s => s.NonVisualShapeProperties.NonVisualDrawingProperties.Id.Value).Max();
+                clonedShape.NonVisualShapeProperties.NonVisualDrawingProperties.Id = new UInt32Value(maxId + 1);
+
+                // Adiciona ao slide
+                slideShapeTree.Append(clonedShape);
+            }
+
+            slidePart.Slide.Save();
+        }
+
         public async Task<SlideMergeResponse> MergeSlides(IFormFile destinationFile, SlideMergeRequest request)
         {
             try
@@ -112,7 +177,7 @@ namespace SlideMergerAPINew.Services
                 {
                     var origemSlidePart = (SlidePart)origemPres.GetPartById(origemSlideIds[i].RelationshipId!);
 
-                    string marcadorVerificacao = i == 0 ? "MBA EM" : "Lei nº 9610/98";
+                    string marcadorVerificacao = i == 0 ? "Prof" : "Lei nº 9610/98";
 
                     if (SlideWithTextExists(destinoPres, marcadorVerificacao))
                     {
@@ -185,6 +250,24 @@ namespace SlideMergerAPINew.Services
                     .First(l => (l.SlideLayout.Type?.Value.ToString() ?? "default") == layoutName);
 
                 var slideIds = destinoSlides.Elements<SlideId>().ToList();
+                var slidesImgCheck = destino.PresentationPart!.SlideParts.ToList();
+
+                var footerLimitY = GetFooterStartY(destino);
+
+                Console.WriteLine($"Count: {slidesImgCheck.Count}, Count-: {slidesImgCheck.Count -1}");
+
+                for (int i = 2; i < slidesImgCheck.Count - 2; i++)
+                {
+
+                    if (HasContentOverlappingFooter(slidesImgCheck[i], footerLimitY))
+                    {
+                        CopyFooterFromMasterToSlide(slidesImgCheck[i]);
+
+
+                        Console.WriteLine($"⚠️ Slide {i + 1} tem conteúdo invadindo a área do rodapé.");
+                    }
+                }
+
                 for (int i = 2; i < slideIds.Count - 1; i++)
                 {
                     var slidePart = (SlidePart)destinoPres.GetPartById(slideIds[i].RelationshipId!);
