@@ -49,7 +49,7 @@ namespace SlideMergerAPINew.Services
         {
             return presPart.SlideParts.Any(sp =>
                 sp.Slide?.Descendants<DocumentFormat.OpenXml.Drawing.Text>()
-                  .Any(t => t.Text != null && t.Text.Contains(searchText)) ?? false);
+                    .Any(t => t.Text != null && t.Text.Contains(searchText)) ?? false);
         }
 
         public static void ReplaceTextColor(SlidePart slidePart, string textoAlvo, string corHex)
@@ -101,8 +101,23 @@ namespace SlideMergerAPINew.Services
             return (long)(17.26 * cmToEmu); // rodapé começa em 17,26cm e tem 1,78cm de altura
         }
 
+        // Helper para obter nome do elemento para logging
+        private static string GetElementName(OpenXmlCompositeElement element)
+        {
+            if (element is DocumentFormat.OpenXml.Presentation.Shape shape)
+            {
+                return shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value ?? "Unnamed Shape";
+            }
+            if (element is DocumentFormat.OpenXml.Drawing.Picture picture)
+            {
+                return picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value ?? "Unnamed Picture";
+            }
+            return element.LocalName;
+        }
+
         public static bool HasContentOverlappingFooter(SlidePart slidePart, long footerStartY)
         {
+            Console.WriteLine($"Verificando sobreposição para slide: {slidePart.Uri.OriginalString}, FooterStartY (EMU): {footerStartY} ({footerStartY / 360000.0:F2}cm)");
             var shapes = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Presentation.Shape>();
             var pictures = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Drawing.Picture>();
             
@@ -117,20 +132,22 @@ namespace SlideMergerAPINew.Services
                     long height = xfrm.Extents.Cy ?? 0;
                     long yEnd = yStart + height;
 
+                    Console.WriteLine($"  Elemento '{element.LocalName}' (Name: {GetElementName(element)}), Y_start: {yStart / 360000.0:F2}cm, Altura: {height / 360000.0:F2}cm, Y_end: {yEnd / 360000.0:F2}cm. FooterYStart: {footerStartY / 360000.0:F2}cm.");
+
                     if (yEnd >= footerStartY)
                     {
-                        Console.WriteLine($"Elemento tipo: {element.LocalName}, Y: {yStart / 360000.0}cm, Altura: {height / 360000.0}cm, Y final: {(yStart + height) / 360000.0}cm");
-                        return true;
+                        Console.WriteLine($"  -> SOBREPOSIÇÃO DETECTADA: Elemento '{GetElementName(element)}' termina em {yEnd / 360000.0:F2}cm, que é >= FooterStartY de {footerStartY / 360000.0:F2}cm.");
+                        return true; 
                     }
                 }
             }
-
+            Console.WriteLine($"  Nenhuma sobreposição detectada para slide: {slidePart.Uri.OriginalString}.");
             return false;
         }
 
         public static void CopyFooterFromMaster(SlidePart slidePart, SlideMasterPart masterPart, long footerYStart)
         {
-            var footerShapes = masterPart.SlideMaster?.CommonSlideData?.ShapeTree?
+            var footerShapes = masterPart.SlideMaster.CommonSlideData.ShapeTree
                 .OfType<DocumentFormat.OpenXml.Presentation.Shape>()
                 .Where(shape =>
                 {
@@ -142,28 +159,29 @@ namespace SlideMergerAPINew.Services
                 })
                 .ToList();
 
-            if (footerShapes == null || !footerShapes.Any())
-                return;
-
-            var shapeTree = slidePart.Slide?.CommonSlideData?.ShapeTree;
-            if (shapeTree == null)
-                return;
+            var shapeTree = slidePart.Slide.CommonSlideData.ShapeTree;
 
             foreach (var footerShape in footerShapes)
             {
                 var clonedShape = (DocumentFormat.OpenXml.Presentation.Shape)footerShape.CloneNode(true);
 
                 // (Opcional) Renomear o shape para facilitar depuração
-                if (clonedShape.NonVisualShapeProperties?.NonVisualDrawingProperties != null)
-                {
-                    clonedShape.NonVisualShapeProperties.NonVisualDrawingProperties.Name =
-                        new DocumentFormat.OpenXml.StringValue("ClonedFooter_" + Guid.NewGuid().ToString());
-                }
+                clonedShape.NonVisualShapeProperties.NonVisualDrawingProperties.Name =
+                    new DocumentFormat.OpenXml.StringValue("ClonedFooter_" + Guid.NewGuid().ToString());
 
                 shapeTree.Append(clonedShape); // Adiciona ao final → desenhado por cima
             }
 
-            slidePart.Slide?.Save();
+            slidePart.Slide.Save();
+        }
+
+
+        public static void AddFooterOverlayToSlide(SlidePart slidePart, SlideMasterPart masterPart, long footerLimitY)
+        {
+            if (HasContentOverlappingFooter(slidePart, footerLimitY))
+            {
+                CopyFooterFromMaster(slidePart, masterPart, footerLimitY - (long)(1.78 * 360000));
+            }
         }
 
         public async Task<SlideMergeResponse> MergeSlides(IFormFile destinationFile, SlideMergeRequest request)
@@ -173,16 +191,13 @@ namespace SlideMergerAPINew.Services
                 var tempDestinationPath = System.IO.Path.GetTempFileName() + ".pptx";
                 var outputPath = System.IO.Path.GetTempFileName() + ".pptx";
 
-                // Salvar o arquivo recebido
                 using (var stream = new FileStream(tempDestinationPath, FileMode.Create))
                 {
                     await destinationFile.CopyToAsync(stream);
                 }
 
-                // Copiar para arquivo de trabalho
                 File.Copy(tempDestinationPath, outputPath, true);
 
-                // Abrir e manipular os documentos - garantir fechamento com using
                 using (var destino = PresentationDocument.Open(outputPath, true))
                 using (var origem = PresentationDocument.Open(TemplatePath, false))
                 {
@@ -198,7 +213,6 @@ namespace SlideMergerAPINew.Services
                         destinoSlides.Elements<SlideId>().Any() ? 
                         destinoSlides.Elements<SlideId>().Max(s => s.Id!.Value) + 1 : 256U;
 
-                    // Copiar primeiros slides do template
                     foreach (int i in primeiros)
                     {
                         var origemSlidePart = (SlidePart)origemPres.GetPartById(origemSlideIds[i].RelationshipId!);
@@ -227,7 +241,6 @@ namespace SlideMergerAPINew.Services
                         }, i);
                     }
 
-                    // Copiar último slide se não existir
                     if (!SlideWithTextExists(destinoPres, "linkedin.com/in/"))
                     {
                         var origemSlidePart = (SlidePart)origemPres.GetPartById(origemSlideIds[ultimoIdx].RelationshipId!);
@@ -243,7 +256,6 @@ namespace SlideMergerAPINew.Services
                         });
                     }
 
-                    // Manipulação de master e layouts
                     var thirdSlide = (SlidePart)origemPres.GetPartById(origemSlideIds[2].RelationshipId!);
                     var layoutSrc = thirdSlide.SlideLayoutPart!;
                     var masterSrc = layoutSrc.SlideMasterPart!;
@@ -261,7 +273,7 @@ namespace SlideMergerAPINew.Services
                             masterDest.AddPart(lay);
 
                         var masterIdList = destinoPres.Presentation.SlideMasterIdList
-                                           ?? destinoPres.Presentation.AppendChild(new SlideMasterIdList());
+                                         ?? destinoPres.Presentation.AppendChild(new SlideMasterIdList());
 
                         uint nextMasterId = masterIdList.Elements<SlideMasterId>().Any()
                             ? masterIdList.Elements<SlideMasterId>().Max(m => m.Id!.Value) + 1
@@ -282,19 +294,13 @@ namespace SlideMergerAPINew.Services
 
                     var footerLimitY = GetFooterStartY(destino);
 
-                    Console.WriteLine($"Count: {slidesImgCheck.Count}, Count-: {slidesImgCheck.Count - 1}");
+                    Console.WriteLine($"Total de slides para verificação de rodapé (excluindo primeiro, segundo e dois últimos): {slidesImgCheck.Count - 4}");
 
-                    // Verificar sobreposição de rodapé
                     for (int i = 2; i < slidesImgCheck.Count - 2; i++)
                     {
-                        if (HasContentOverlappingFooter(slidesImgCheck[i], footerLimitY))
-                        {
-                            CopyFooterFromMaster(slidesImgCheck[i], masterSrc, footerLimitY - (long)(1.78 * 360000));
-                            Console.WriteLine($"⚠️ Slide {i + 1} tem conteúdo invadindo a área do rodapé.");
-                        }
+                        AddFooterOverlayToSlide(slidesImgCheck[i], masterSrc, footerLimitY);
                     }
 
-                    // Aplicar layout aos slides
                     for (int i = 2; i < slideIds.Count - 1; i++)
                     {
                         var slidePart = (SlidePart)destinoPres.GetPartById(slideIds[i].RelationshipId!);
@@ -308,16 +314,13 @@ namespace SlideMergerAPINew.Services
 
                     ApplyPageNumbering(destinoPres);
                     destinoPres.Presentation.Save();
-                } // IMPORTANTE: Aqui os documentos são fechados automaticamente
+                }
 
-                // Limpar arquivo temporário
                 File.Delete(tempDestinationPath);
 
-                // Agora que os documentos estão fechados, podemos normalizar
                 string outputNormalizedPath = System.IO.Path.GetTempFileName() + ".pptx";
                 await NormalizarComPythonAsync(outputPath, outputNormalizedPath);
 
-                // Remover arquivo não normalizado
                 File.Delete(outputPath);
 
                 var fileName = $"ApresentacaoFinal_{DateTime.Now:yyyyMMdd_HHmmss}.pptx";
@@ -343,7 +346,7 @@ namespace SlideMergerAPINew.Services
         private static async Task NormalizarComPythonAsync(string caminhoPptxOriginal, string caminhoPptxNormalizado)
         {
             using var client = new HttpClient();
-            client.Timeout = TimeSpan.FromMinutes(5); // Timeout de 5 minutos
+            client.Timeout = TimeSpan.FromMinutes(5);
 
             using var fs = File.OpenRead(caminhoPptxOriginal);
             using var content = new MultipartFormDataContent();
@@ -352,7 +355,6 @@ namespace SlideMergerAPINew.Services
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.presentationml.presentation");
             content.Add(fileContent, "file", System.IO.Path.GetFileName(caminhoPptxOriginal));
 
-            // URL do serviço Python normalizador
             var response = await client.PostAsync("http://normalizer:8000/normaliza", content);
             response.EnsureSuccessStatusCode();
 
