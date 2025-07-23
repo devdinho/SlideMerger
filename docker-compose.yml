@@ -17,6 +17,7 @@ services:
     container_name: pptx_normalizer
     networks:
       - appnet
+      
   frontend:
     container_name: pptx_frontend
     build:
