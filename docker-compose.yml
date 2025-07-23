@@ -7,9 +7,16 @@ services:
       - "5030:5030"
     environment:
       - ASPNETCORE_URLS=http://+:5030
-
     volumes:
       - ./backend/Templates:/app/Templates
+    networks:
+      - appnet
+
+  normalizer:
+    build: ./normalizer
+    container_name: pptx_normalizer
+    networks:
+      - appnet
   frontend:
     container_name: pptx_frontend
     build:
@@ -20,5 +27,7 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    depends_on:
-      - backend
+
+networks:
+  appnet:
+    driver: bridge
