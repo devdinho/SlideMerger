@@ -7,7 +7,7 @@ import { Progress } from './components/ui/progress';
 import { Upload, Download, ArrowLeft, CheckCircle } from 'lucide-react';
 import './styles/globals.css'
 
-import logo from './assets/logo-sem-letra.png';
+import logo from './assets/logo-b.svg';
 
 type FormData = {
   titulo: string;
@@ -150,7 +150,7 @@ export default function App() {
     if (downloadUrl) {
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `${formData.titulo}_${formData.professor}_processado.pptx`;
+      a.download = formData.arquivo.name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

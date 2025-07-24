@@ -323,7 +323,7 @@ namespace SlideMergerAPINew.Services
 
                 File.Delete(outputPath);
 
-                var fileName = $"ApresentacaoFinal_{DateTime.Now:yyyyMMdd_HHmmss}.pptx";
+                var fileName = $"{outputNormalizedPath}.pptx";
 
                 return new SlideMergeResponse
                 {
