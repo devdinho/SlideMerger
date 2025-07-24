@@ -117,7 +117,6 @@ namespace SlideMergerAPINew.Services
 
         public static bool HasContentOverlappingFooter(SlidePart slidePart, long footerStartY)
         {
-            Console.WriteLine($"Verificando sobreposição para slide: {slidePart.Uri.OriginalString}, FooterStartY (EMU): {footerStartY} ({footerStartY / 360000.0:F2}cm)");
             var shapes = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Presentation.Shape>();
             var pictures = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Drawing.Picture>();
             
@@ -132,16 +131,13 @@ namespace SlideMergerAPINew.Services
                     long height = xfrm.Extents.Cy ?? 0;
                     long yEnd = yStart + height;
 
-                    Console.WriteLine($"  Elemento '{element.LocalName}' (Name: {GetElementName(element)}), Y_start: {yStart / 360000.0:F2}cm, Altura: {height / 360000.0:F2}cm, Y_end: {yEnd / 360000.0:F2}cm. FooterYStart: {footerStartY / 360000.0:F2}cm.");
 
                     if (yEnd >= footerStartY)
                     {
-                        Console.WriteLine($"  -> SOBREPOSIÇÃO DETECTADA: Elemento '{GetElementName(element)}' termina em {yEnd / 360000.0:F2}cm, que é >= FooterStartY de {footerStartY / 360000.0:F2}cm.");
                         return true; 
                     }
                 }
             }
-            Console.WriteLine($"  Nenhuma sobreposição detectada para slide: {slidePart.Uri.OriginalString}.");
             return false;
         }
 
@@ -294,7 +290,6 @@ namespace SlideMergerAPINew.Services
 
                     var footerLimitY = GetFooterStartY(destino);
 
-                    Console.WriteLine($"Total de slides para verificação de rodapé (excluindo primeiro, segundo e dois últimos): {slidesImgCheck.Count - 4}");
 
                     for (int i = 2; i < slidesImgCheck.Count - 2; i++)
                     {
