@@ -5,12 +5,18 @@ using DocumentFormat.OpenXml.Presentation;
 using SlideMergerAPINew.Models;
 using System;
 using System.Collections.Generic;
-using System.IO;
+// Removendo 'using System.IO;' temporariamente para testar se isso resolve a ambiguidade de 'Path' e 'File'
+// e explicitando System.IO. na frente dos usos.
+// using System.IO; 
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using System.Diagnostics;
+
+// Alias para o namespace Drawing
+using D = DocumentFormat.OpenXml.Drawing;
 
 namespace SlideMergerAPINew.Services
 {
@@ -20,63 +26,78 @@ namespace SlideMergerAPINew.Services
 
         public static void ReplaceTextInSlide(SlidePart slidePart, string textoAntigo, string textoNovo)
         {
-            var textos = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Drawing.Text>();
+            Console.WriteLine($"Iniciando ReplaceTextInSlide: '{textoAntigo}' por '{textoNovo}'");
+            var textos = slidePart.Slide.Descendants<D.Text>();
             foreach (var t in textos)
             {
                 if (t.Text != null && t.Text.Contains(textoAntigo))
                     t.Text = t.Text.Replace(textoAntigo, textoNovo);
             }
+            Console.WriteLine("Finalizando ReplaceTextInSlide.");
         }
 
         public static void ApplyPageNumbering(PresentationPart presentationPart)
         {
+            Console.WriteLine("Iniciando ApplyPageNumbering.");
             var slideIds = presentationPart.Presentation.SlideIdList!.Elements<SlideId>().ToList();
 
             for (int i = 0; i < slideIds.Count; i++)
             {
                 var relId = slideIds[i].RelationshipId;
-                if (relId == null)
+                if (string.IsNullOrEmpty(relId))
                     continue;
 
                 var slidePart = (SlidePart)presentationPart.GetPartById(relId);
                 int pageNumber = i + 1;
-
+                Console.WriteLine($"  Aplicando numeração de página {pageNumber} ao slide com RelId: {slideIds[i].RelationshipId!}");
                 ReplaceTextInSlide(slidePart, "<número>", pageNumber.ToString());
             }
+            Console.WriteLine("Finalizando ApplyPageNumbering.");
         }
 
         public static bool SlideWithTextExists(PresentationPart presPart, string searchText)
         {
-            return presPart.SlideParts.Any(sp =>
-                sp.Slide?.Descendants<DocumentFormat.OpenXml.Drawing.Text>()
+            Console.WriteLine($"Verificando se slide com texto '{searchText}' existe.");
+            var exists = presPart.SlideParts.Any(sp =>
+                sp.Slide?.Descendants<D.Text>()
                     .Any(t => t.Text != null && t.Text.Contains(searchText)) ?? false);
+            Console.WriteLine($"  Slide com texto '{searchText}' {(exists ? "encontrado" : "NÃO encontrado")}.");
+            return exists;
         }
 
         public static void ReplaceTextColor(SlidePart slidePart, string textoAlvo, string corHex)
         {
-            var textos = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Drawing.Text>();
+            Console.WriteLine($"Iniciando ReplaceTextColor para '{textoAlvo}' com cor '{corHex}'.");
+            var textos = slidePart.Slide.Descendants<D.Text>();
 
             foreach (var t in textos)
             {
                 if (t.Text != null && t.Text.Contains(textoAlvo))
                 {
-                    var run = t.Parent as Run;
+                    var run = t.Parent as D.Run;
                     if (run != null)
                     {
-                        var runProperties = run.RunProperties ??= new RunProperties();
+                        var runProperties = run.RunProperties ??= new D.RunProperties();
 
-                        runProperties.RemoveAllChildren<SolidFill>();
+                        runProperties.RemoveAllChildren<D.SolidFill>();
 
-                        runProperties.AppendChild(new SolidFill(
-                            new RgbColorModelHex { Val = corHex.Replace("#", "") }
+                        runProperties.AppendChild(new D.SolidFill(
+                            new D.RgbColorModelHex { Val = corHex.Replace("#", "") }
                         ));
+                        Console.WriteLine($"  Cor alterada para '{textoAlvo}' (Run).");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"  AVISO: Pai de texto '{textoAlvo}' não é um Run. Cor não alterada para este texto.");
                     }
                 }
             }
+            Console.WriteLine("Finalizando ReplaceTextColor.");
         }
 
         public static void ReplaceTextArea(SlidePart slidePart, string textoAlvo, string corHex)
         {
+            Console.WriteLine($"Iniciando ReplaceTextArea para '{textoAlvo}' com cor de área '{corHex}'.");
             var shapes = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Presentation.Shape>();
 
             foreach (var shape in shapes)
@@ -86,13 +107,15 @@ namespace SlideMergerAPINew.Services
                 {
                     var spPr = shape.ShapeProperties ??= new DocumentFormat.OpenXml.Presentation.ShapeProperties();
 
-                    spPr.RemoveAllChildren<SolidFill>();
+                    spPr.RemoveAllChildren<D.SolidFill>();
 
-                    spPr.AppendChild(new SolidFill(
-                        new RgbColorModelHex { Val = corHex.Replace("#", "") }
+                    spPr.AppendChild(new D.SolidFill(
+                        new D.RgbColorModelHex { Val = corHex.Replace("#", "") }
                     ));
+                    Console.WriteLine($"  Cor da área alterada para shape com texto '{textoAlvo}'.");
                 }
             }
+            Console.WriteLine("Finalizando ReplaceTextArea.");
         }
 
         public static long GetFooterStartY(PresentationDocument doc)
@@ -101,16 +124,25 @@ namespace SlideMergerAPINew.Services
             return (long)(17.26 * cmToEmu); // rodapé começa em 17,26cm e tem 1,78cm de altura
         }
 
-        // Helper para obter nome do elemento para logging
-        private static string GetElementName(OpenXmlCompositeElement element)
+        private static long? GetYPosition(OpenXmlElement element)
+        {
+            var xfrm = element.Descendants<D.Transform2D>().FirstOrDefault();
+            return xfrm?.Offset?.Y?.Value;
+        }
+
+        private static string GetElementName(OpenXmlElement element)
         {
             if (element is DocumentFormat.OpenXml.Presentation.Shape shape)
             {
                 return shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value ?? "Unnamed Shape";
             }
-            if (element is DocumentFormat.OpenXml.Drawing.Picture picture)
+            if (element is D.Picture picture)
             {
                 return picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value ?? "Unnamed Picture";
+            }
+            if (element is DocumentFormat.OpenXml.Presentation.GroupShape groupShape)
+            {
+                return groupShape.NonVisualGroupShapeProperties?.NonVisualDrawingProperties?.Name?.Value ?? "Unnamed GroupShape";
             }
             return element.LocalName;
         }
@@ -118,57 +150,117 @@ namespace SlideMergerAPINew.Services
         public static bool HasContentOverlappingFooter(SlidePart slidePart, long footerStartY)
         {
             var shapes = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Presentation.Shape>();
-            var pictures = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Drawing.Picture>();
+            var pictures = slidePart.Slide.Descendants<D.Picture>();
             
-            var allElements = shapes.Cast<OpenXmlCompositeElement>().Concat(pictures);
+            var allElements = shapes.Cast<OpenXmlElement>().Concat(pictures.Cast<OpenXmlElement>());
 
             foreach (var element in allElements)
             {
-                var xfrm = element.Descendants<DocumentFormat.OpenXml.Drawing.Transform2D>().FirstOrDefault();
+                var xfrm = element.Descendants<D.Transform2D>().FirstOrDefault();
                 if (xfrm?.Offset != null && xfrm.Extents != null)
                 {
-                    long yStart = xfrm.Offset.Y ?? 0;
-                    long height = xfrm.Extents.Cy ?? 0;
+                    long yStart = xfrm.Offset.Y?.Value ?? 0;
+                    long height = xfrm.Extents.Cy?.Value ?? 0;
                     long yEnd = yStart + height;
-
 
                     if (yEnd >= footerStartY)
                     {
+                        Console.WriteLine($"[DEBUG] Sobreposição detectada no slide: {slidePart.Uri.OriginalString}. Elemento sobreposto: {GetElementName(element)}, Y inicial: {yStart/360000.0:F3}cm, Altura: {height/360000.0:F3}cm, Y final: {yEnd/360000.0:F3}cm");
                         return true; 
                     }
                 }
             }
+            Console.WriteLine($"[DEBUG] Nenhuma sobreposição detectada no slide: {slidePart.Uri.OriginalString}.");
             return false;
+        }
+
+        private static IEnumerable<OpenXmlElement> GetShapesAndPicturesFromElement(OpenXmlElement element)
+        {
+            if (element == null) yield break;
+
+            if (element is DocumentFormat.OpenXml.Presentation.Shape || element is D.Picture)
+            {
+                Console.WriteLine($"[DEBUG] Elemento final avaliando para cópia: '{element.LocalName}' (Tipo XML: '{element.GetType().Name}'), Y: {GetYPosition(element).ToCm():F3}cm (EMUs raw: {GetYPosition(element).GetValueOrDefault()})");
+                yield return element;
+            }
+
+            if (element is OpenXmlCompositeElement compositeElement)
+            {
+                foreach (var child in compositeElement.Elements())
+                {
+                    foreach (var s in GetShapesAndPicturesFromElement(child))
+                    {
+                        yield return s;
+                    }
+                }
+            }
         }
 
         public static void CopyFooterFromMaster(SlidePart slidePart, SlideMasterPart masterPart, long footerYStart)
         {
-            var footerShapes = masterPart.SlideMaster.CommonSlideData.ShapeTree
-                .OfType<DocumentFormat.OpenXml.Presentation.Shape>()
-                .Where(shape =>
-                {
-                    var transform = shape.ShapeProperties?.Transform2D;
-                    if (transform == null) return false;
+            Console.WriteLine($"[DEBUG] Buscando shapes de rodapé no Slide Master. Filtrando a partir de {footerYStart/360000.0:F3}cm.");
 
-                    var y = transform.Offset?.Y ?? 0;
-                    return y >= footerYStart;
-                })
-                .ToList();
+            Console.WriteLine("[DEBUG] Conteúdo completo do Slide Master ShapeTree:");
+            var allMasterRootElements = masterPart.SlideMaster.CommonSlideData.ShapeTree.Elements<OpenXmlElement>();
+            foreach (var element in allMasterRootElements)
+            {
+                var yPos = GetYPosition(element);
+                long y = yPos.GetValueOrDefault(-1); 
+                string type = element.LocalName;
+                string name = GetElementName(element);
+                Console.WriteLine($"  - Elemento: '{name}' (Tipo XML: '{type}'), Y: {y/360000.0:F3}cm (EMUs raw: {y})");
+            }
+            Console.WriteLine("[DEBUG] Fim do Conteúdo completo do Slide Master ShapeTree.");
+
+            var allShapesAndPicturesInMaster = GetShapesAndPicturesFromElement(masterPart.SlideMaster.CommonSlideData.ShapeTree);
+
+            var footerElementsToCopy = new List<OpenXmlElement>();
+
+            foreach(var element in allShapesAndPicturesInMaster)
+            {
+                var yPos = GetYPosition(element);
+                if (yPos.HasValue)
+                {
+                    long y = yPos.Value;
+                    Console.WriteLine($"[DEBUG] Elemento final avaliando para cópia: '{GetElementName(element)}' (Tipo XML: '{element.LocalName}'), Y: {y/360000.0:F3}cm. (Será copiado se Y >= {footerYStart/360000.0:F3}cm)");
+                    
+                    if (y >= footerYStart)
+                    {
+                        footerElementsToCopy.Add(element);
+                    }
+                } else {
+                    Console.WriteLine($"[DEBUG] Elemento final: '{GetElementName(element)}' (Tipo XML: '{element.LocalName}') não tem Transform2D ou Offset e será ignorado pelo filtro.");
+                }
+            }
+
+            if (!footerElementsToCopy.Any())
+            {
+                Console.WriteLine($"[DEBUG] Nenhuma forma de rodapé encontrada no Slide Master para copiar com Y >= {footerYStart/360000.0:F3}cm.");
+            }
 
             var shapeTree = slidePart.Slide.CommonSlideData.ShapeTree;
 
-            foreach (var footerShape in footerShapes)
+            foreach (var footerElement in footerElementsToCopy)
             {
-                var clonedShape = (DocumentFormat.OpenXml.Presentation.Shape)footerShape.CloneNode(true);
+                var clonedElement = (OpenXmlElement)footerElement.CloneNode(true);
 
-                // (Opcional) Renomear o shape para facilitar depuração
-                clonedShape.NonVisualShapeProperties.NonVisualDrawingProperties.Name =
-                    new DocumentFormat.OpenXml.StringValue("ClonedFooter_" + Guid.NewGuid().ToString());
+                if (clonedElement is DocumentFormat.OpenXml.Presentation.Shape clonedShape)
+                {
+                    clonedShape.NonVisualShapeProperties.NonVisualDrawingProperties.Name =
+                        new DocumentFormat.OpenXml.StringValue("ClonedFooterShape_" + Guid.NewGuid().ToString());
+                }
+                else if (clonedElement is D.Picture clonedPicture)
+                {
+                    clonedPicture.NonVisualPictureProperties.NonVisualDrawingProperties.Name =
+                        new DocumentFormat.OpenXml.StringValue("ClonedFooterPicture_" + Guid.NewGuid().ToString());
+                }
 
-                shapeTree.Append(clonedShape); // Adiciona ao final → desenhado por cima
+                shapeTree.Append(clonedElement);
+                Console.WriteLine($"[DEBUG] Rodapé '{GetElementName(clonedElement)}' copiado para o slide {slidePart.Uri.OriginalString}.");
             }
 
             slidePart.Slide.Save();
+            Console.WriteLine($"[DEBUG] Slide {slidePart.Uri.OriginalString} salvo após tentativa de cópia do rodapé.");
         }
 
 
@@ -184,23 +276,24 @@ namespace SlideMergerAPINew.Services
         {
             try
             {
-                var tempDestinationPath = System.IO.Path.GetTempFileName() + ".pptx";
-                var outputPath = System.IO.Path.GetTempFileName() + ".pptx";
+                // **Explicitando System.IO.Path e System.IO.File**
+                string tempDestinationPath = System.IO.Path.GetTempFileName() + ".pptx";
+                string outputPath = System.IO.Path.GetTempFileName() + ".pptx";
 
-                using (var stream = new FileStream(tempDestinationPath, FileMode.Create))
+                using (var stream = new System.IO.FileStream(tempDestinationPath, System.IO.FileMode.Create))
                 {
                     await destinationFile.CopyToAsync(stream);
                 }
 
-                File.Copy(tempDestinationPath, outputPath, true);
+                System.IO.File.Copy(tempDestinationPath, outputPath, true);
 
                 using (var destino = PresentationDocument.Open(outputPath, true))
                 using (var origem = PresentationDocument.Open(TemplatePath, false))
                 {
                     var destinoPres = destino.PresentationPart!;
                     var origemPres = origem.PresentationPart!;
-                    var destinoSlides = destinoPres.Presentation.SlideIdList!;
-                    var origemSlideIds = origemPres.Presentation.SlideIdList!.Elements<SlideId>().ToList();
+                    var destinoSlides = destinoPres.Presentation!.SlideIdList!;
+                    var origemSlideIds = origemPres.Presentation!.SlideIdList!.Elements<SlideId>().ToList();
 
                     int[] primeiros = { 0, 1 };
                     int ultimoIdx = origemSlideIds.Count - 1;
@@ -311,21 +404,23 @@ namespace SlideMergerAPINew.Services
                     destinoPres.Presentation.Save();
                 }
 
-                File.Delete(tempDestinationPath);
+                System.IO.File.Delete(tempDestinationPath);
 
                 string outputNormalizedPath = System.IO.Path.GetTempFileName() + ".pptx";
                 await NormalizarComPythonAsync(outputPath, outputNormalizedPath);
 
-                File.Delete(outputPath);
+                System.IO.File.Delete(outputPath);
 
-                var fileName = $"{outputNormalizedPath}.pptx";
+                var fileName = System.IO.Path.GetFileName(outputNormalizedPath);
+                var downloadUrl = outputNormalizedPath;
+
 
                 return new SlideMergeResponse
                 {
                     Success = true,
                     Message = "Slides processados e normalizados com sucesso!",
                     FileName = fileName,
-                    DownloadUrl = outputNormalizedPath
+                    DownloadUrl = downloadUrl
                 };
             }
             catch (Exception ex)
@@ -343,7 +438,7 @@ namespace SlideMergerAPINew.Services
             using var client = new HttpClient();
             client.Timeout = TimeSpan.FromMinutes(5);
 
-            using var fs = File.OpenRead(caminhoPptxOriginal);
+            using var fs = System.IO.File.OpenRead(caminhoPptxOriginal);
             using var content = new MultipartFormDataContent();
             using var fileContent = new StreamContent(fs);
             
@@ -354,8 +449,20 @@ namespace SlideMergerAPINew.Services
             response.EnsureSuccessStatusCode();
 
             using var ms = await response.Content.ReadAsStreamAsync();
-            using var fsOut = File.Create(caminhoPptxNormalizado);
+            using var fsOut = System.IO.File.Create(caminhoPptxNormalizado);
             await ms.CopyToAsync(fsOut);
+        }
+    }
+
+    public static class OpenXmlHelperExtensions
+    {
+        public static double ToCm(this long? emuValue)
+        {
+            if (emuValue.HasValue)
+            {
+                return emuValue.Value / 36000.0; // 1 cm = 36000 EMUs
+            }
+            return 0.0;
         }
     }
 }
