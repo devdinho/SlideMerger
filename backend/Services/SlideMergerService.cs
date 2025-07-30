@@ -1,6 +1,6 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Drawing;
-using DocumentFormat.OpenXml.Packaging; 
+using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Presentation;
 using SlideMergerAPINew.Models;
 using System;
@@ -34,18 +34,47 @@ namespace SlideMergerAPINew.Services
 
         public static void ApplyPageNumbering(PresentationPart presentationPart)
         {
-            var slideIds = presentationPart.Presentation!.SlideIdList!.Elements<SlideId>().ToList();
+            Console.WriteLine("[DEBUG] Tentando aplicar numeração de página via configurações da apresentação.");
 
-            for (int i = 0; i < slideIds.Count; i++)
+            // Obtém ou cria o PresentationPropertiesPart
+            PresentationPropertiesPart? presentationPropertiesPart = presentationPart.PresentationPropertiesPart;
+            if (presentationPropertiesPart == null)
             {
-                var relId = slideIds[i].RelationshipId;
-                if (string.IsNullOrEmpty(relId))
-                    continue;
-
-                var slidePart = (SlidePart)presentationPart.GetPartById(relId!);
-                int pageNumber = i + 1;
-                ReplaceTextInSlide(slidePart, "<número>", pageNumber.ToString());
+                presentationPropertiesPart = presentationPart.AddNewPart<PresentationPropertiesPart>();
+                presentationPropertiesPart.PresentationProperties = new DocumentFormat.OpenXml.Presentation.PresentationProperties(); // Explicitly use the PresentationProperties type
+                Console.WriteLine("[DEBUG] PresentationPropertiesPart criado.");
             }
+
+            // Obtém ou cria o elemento HeaderFooter dentro de PresentationProperties
+            // HeaderFooter é uma classe dentro de DocumentFormat.OpenXml.Presentation
+            DocumentFormat.OpenXml.Presentation.HeaderFooter? headerFooter = presentationPropertiesPart.PresentationProperties.GetFirstChild<DocumentFormat.OpenXml.Presentation.HeaderFooter>();
+            if (headerFooter == null)
+            {
+                headerFooter = new DocumentFormat.OpenXml.Presentation.HeaderFooter();
+                presentationPropertiesPart.PresentationProperties.AppendChild(headerFooter);
+                Console.WriteLine("[DEBUG] HeaderFooter element criado dentro de PresentationProperties.");
+            }
+
+            // Define a visibilidade do número do slide. BooleanValue está em DocumentFormat.OpenXml
+            // A propriedade correta é 'SlideNumber', não 'SlideNumberVisibility'
+            if (headerFooter.SlideNumber == null)
+            {
+                headerFooter.SlideNumber = new DocumentFormat.OpenXml.BooleanValue(true);
+            }
+            else
+            {
+                headerFooter.SlideNumber.Value = true;
+            }
+            Console.WriteLine("[DEBUG] Propriedade de visibilidade do número do slide definida como TRUE no HeaderFooter do PresentationPropertiesPart.");
+
+            // Salva as mudanças no PresentationPropertiesPart
+            presentationPropertiesPart.PresentationProperties.Save();
+            Console.WriteLine("[DEBUG] PresentationPropertiesPart salvo.");
+
+            // Isso apenas habilita a *exibição* dos números de slide.
+            // Para que os números realmente apareçam, seu Slide Mestre(s) e/ou Layout(s) de Slide
+            // no arquivo Template.pptx devem ter o placeholder nativo "Número de Slide" (Type: sldNum).
+            // Se não tiverem, ou se estiverem ocultos no mestre/layout, eles ainda não aparecerão.
         }
 
         public static bool SlideWithTextExists(PresentationPart presPart, string searchText)
@@ -199,7 +228,7 @@ namespace SlideMergerAPINew.Services
             return false;
         }
 
-        public static void CopyFooterFromMaster(SlidePart slidePart, SlideMasterPart masterPart, long footerYStart) // Removed PresentationDocument parameter as it was not needed
+        public static void CopyFooterFromMaster(SlidePart slidePart, SlideMasterPart masterPart, long footerYStart)
         {
             var shapeTree = slidePart.Slide!.CommonSlideData!.ShapeTree!;
             var footerElementsToCopy = new List<OpenXmlElement>();
@@ -407,7 +436,6 @@ namespace SlideMergerAPINew.Services
         public static void AddFooterOverlayToSlide(SlidePart slidePart, SlideMasterPart masterPart, long footerLimitY)
         {
             Console.WriteLine($"[DEBUG] Chamando CopyFooterFromMaster para o slide {slidePart.Uri.OriginalString}.");
-            // The destinationDocument parameter was removed as it's not directly used in CopyFooterFromMaster anymore
             CopyFooterFromMaster(slidePart, masterPart, footerLimitY);
         }
 
@@ -736,12 +764,9 @@ namespace SlideMergerAPINew.Services
                         }
                         slidePart.Slide!.Save(); 
 
-                        // Always call AddFooterOverlayToSlide for these slides
                         Console.WriteLine($"[DEBUG] Aplicando rodapé ao slide {slidePart.Uri.OriginalString} (index {i}).");
                         AddFooterOverlayToSlide(slidePart, masterSrc, footerLimitY);
                         
-                        // If there is content overlapping the footer, you might want to adjust it here if needed.
-                        // The HasContentOverlappingFooter can still be used for logging or future adjustment logic.
                         if (HasContentOverlappingFooter(slidePart, footerLimitY))
                         {
                             Console.WriteLine($"[DEBUG] Conteúdo sobreposto ao rodapé detectado no slide {slidePart.Uri.OriginalString}. Considere ajustar o conteúdo existente.");
@@ -749,7 +774,7 @@ namespace SlideMergerAPINew.Services
                     }
                     
                     Console.WriteLine("[DEBUG] Aplicando numeração de página.");
-                    ApplyPageNumbering(destinoPres);
+                    ApplyPageNumbering(destinoPres); // Esta chamada agora apenas garante a visibilidade geral do número do slide.
                     Console.WriteLine("[DEBUG] Salvando apresentação de destino.");
                     destinoPres.Presentation!.Save(); 
                 }
