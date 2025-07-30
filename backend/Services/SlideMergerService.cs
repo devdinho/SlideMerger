@@ -34,7 +34,7 @@ namespace SlideMergerAPINew.Services
 
         public static void ApplyPageNumbering(PresentationPart presentationPart)
         {
-            Console.WriteLine("[DEBUG] Tentando aplicar numeração de página via configurações da apresentação.");
+            Debug.WriteLine("[DEBUG] Tentando aplicar numeração de página via configurações da apresentação.");
 
             // Obtém ou cria o PresentationPropertiesPart
             PresentationPropertiesPart? presentationPropertiesPart = presentationPart.PresentationPropertiesPart;
@@ -42,7 +42,7 @@ namespace SlideMergerAPINew.Services
             {
                 presentationPropertiesPart = presentationPart.AddNewPart<PresentationPropertiesPart>();
                 presentationPropertiesPart.PresentationProperties = new DocumentFormat.OpenXml.Presentation.PresentationProperties(); // Explicitly use the PresentationProperties type
-                Console.WriteLine("[DEBUG] PresentationPropertiesPart criado.");
+                Debug.WriteLine("[DEBUG] PresentationPropertiesPart criado.");
             }
 
             // Obtém ou cria o elemento HeaderFooter dentro de PresentationProperties
@@ -52,7 +52,7 @@ namespace SlideMergerAPINew.Services
             {
                 headerFooter = new DocumentFormat.OpenXml.Presentation.HeaderFooter();
                 presentationPropertiesPart.PresentationProperties.AppendChild(headerFooter);
-                Console.WriteLine("[DEBUG] HeaderFooter element criado dentro de PresentationProperties.");
+                Debug.WriteLine("[DEBUG] HeaderFooter element criado dentro de PresentationProperties.");
             }
 
             // Define a visibilidade do número do slide. BooleanValue está em DocumentFormat.OpenXml
@@ -65,11 +65,11 @@ namespace SlideMergerAPINew.Services
             {
                 headerFooter.SlideNumber.Value = true;
             }
-            Console.WriteLine("[DEBUG] Propriedade de visibilidade do número do slide definida como TRUE no HeaderFooter do PresentationPropertiesPart.");
+            Debug.WriteLine("[DEBUG] Propriedade de visibilidade do número do slide definida como TRUE no HeaderFooter do PresentationPropertiesPart.");
 
             // Salva as mudanças no PresentationPropertiesPart
             presentationPropertiesPart.PresentationProperties.Save();
-            Console.WriteLine("[DEBUG] PresentationPropertiesPart salvo.");
+            Debug.WriteLine("[DEBUG] PresentationPropertiesPart salvo.");
 
             // Isso apenas habilita a *exibição* dos números de slide.
             // Para que os números realmente apareçam, seu Slide Mestre(s) e/ou Layout(s) de Slide
@@ -113,7 +113,7 @@ namespace SlideMergerAPINew.Services
                     }
                     else
                     {
-                        Console.WriteLine($"AVISO: Pai de texto '{textoAlvo}' não é um Run. Cor não alterada para este texto.");
+                        Debug.WriteLine($"AVISO: Pai de texto '{textoAlvo}' não é um Run. Cor não alterada para este texto.");
                     }
                 }
             }
@@ -219,12 +219,12 @@ namespace SlideMergerAPINew.Services
 
                     if (yEnd >= footerStartY) 
                     {
-                        Console.WriteLine($"[DEBUG] Sobreposição detectada no slide: {slidePart.Uri.OriginalString}. Elemento sobreposto: {GetElementName(element)}, Y inicial: {yStart/360000.0:F3}cm, Altura: {height/360000.0:F3}cm, Y final: {yEnd/360000.0:F3}cm");
+                        Debug.WriteLine($"[DEBUG] Sobreposição detectada no slide: {slidePart.Uri.OriginalString}. Elemento sobreposto: {GetElementName(element)}, Y inicial: {yStart/360000.0:F3}cm, Altura: {height/360000.0:F3}cm, Y final: {yEnd/360000.0:F3}cm");
                         return true;
                     }
                 }
             }
-            Console.WriteLine($"[DEBUG] Nenhuma sobreposição detectada no slide: {slidePart.Uri.OriginalString}.");
+            Debug.WriteLine($"[DEBUG] Nenhuma sobreposição detectada no slide: {slidePart.Uri.OriginalString}.");
             return false;
         }
 
@@ -243,16 +243,16 @@ namespace SlideMergerAPINew.Services
 
             var addedElementsTracker = new HashSet<OpenXmlElement>();
 
-            Console.WriteLine("[DEBUG] Elementos visuais detectados no Slide Master (todos os tipos):");
+            Debug.WriteLine("[DEBUG] Elementos visuais detectados no Slide Master (todos os tipos):");
             foreach (var dbgElement in allMasterVisualDescendants)
             {
                 long? y = GetYPosition(dbgElement);
                 long? height = GetElementHeight(dbgElement);
                 string elementName = GetElementName(dbgElement);
                 string innerText = (dbgElement as DocumentFormat.OpenXml.Presentation.Shape)?.TextBody?.InnerText ?? "";
-                Console.WriteLine($"  - Elemento: {elementName} (Tipo: {dbgElement.LocalName}), Y: {(y.HasValue ? y.Value / 360000.0 : -1):F3}cm, Altura: {(height.HasValue ? height.Value / 360000.0 : -1):F3}cm, Texto: '{innerText.Replace("\n", " ").Replace("\r", "")}'");
+                Debug.WriteLine($"  - Elemento: {elementName} (Tipo: {dbgElement.LocalName}), Y: {(y.HasValue ? y.Value / 360000.0 : -1):F3}cm, Altura: {(height.HasValue ? height.Value / 360000.0 : -1):F3}cm, Texto: '{innerText.Replace("\n", " ").Replace("\r", "")}'");
             }
-            Console.WriteLine("[DEBUG] Fim da lista de elementos visuais do Slide Master.");
+            Debug.WriteLine("[DEBUG] Fim da lista de elementos visuais do Slide Master.");
 
             var desiredFooterElementIdentifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -297,24 +297,24 @@ namespace SlideMergerAPINew.Services
                         {
                             addedElementsTracker.Add(descendant);
                         }
-                        Console.WriteLine($"[DEBUG] Grupo '{elementName}' adicionado para cópia (Y inicial: {(yStart.HasValue ? yStart.Value / 360000.0 : -1):F3}cm). Seus filhos serão ignorados individualmente na detecção principal, but will be copied as part of the group.");
+                        Debug.WriteLine($"[DEBUG] Grupo '{elementName}' adicionado para cópia (Y inicial: {(yStart.HasValue ? yStart.Value / 360000.0 : -1):F3}cm). Seus filhos serão ignorados individualmente na detecção principal, but will be copied as part of the group.");
                     }
                     else
                     {
                         footerElementsToCopy.Add(element);
                         addedElementsTracker.Add(element);
-                        Console.WriteLine($"[DEBUG] Elemento '{elementName}' adicionado para cópia (Y inicial: {(yStart.HasValue ? yStart.Value / 360000.0 : -1):F3}cm, Texto: '{innerText}').");
+                        Debug.WriteLine($"[DEBUG] Elemento '{elementName}' adicionado para cópia (Y inicial: {(yStart.HasValue ? yStart.Value / 360000.0 : -1):F3}cm, Texto: '{innerText}').");
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"[DEBUG] Elemento '{elementName}' (Y inicial: {(yStart.HasValue ? yStart.Value / 360000.0 : -1):F3}cm, Altura: {(height.HasValue ? height.Value / 360000.0 : -1):F3}cm, Texto: '{innerText}') ignorado, pois não está na área do rodapé (início do rodapé: {footerYStart/360000.0:F3}cm).");
+                    Debug.WriteLine($"[DEBUG] Elemento '{elementName}' (Y inicial: {(yStart.HasValue ? yStart.Value / 360000.0 : -1):F3}cm, Altura: {(height.HasValue ? height.Value / 360000.0 : -1):F3}cm, Texto: '{innerText}') ignorado, pois não está na área do rodapé (início do rodapé: {footerYStart/360000.0:F3}cm).");
                 }
             }
 
             if (!footerElementsToCopy.Any())
             {
-                Console.WriteLine($"[DEBUG] Nenhum elemento foi selecionado para cópia do master.");
+                Debug.WriteLine($"[DEBUG] Nenhum elemento foi selecionado para cópia do master.");
                 return;
             }
 
@@ -350,7 +350,7 @@ namespace SlideMergerAPINew.Services
 
                         if (originalImagePart != null)
                         {
-                            Console.WriteLine($"[DEBUG] CopyFooterFromMaster: Adding new ImagePart to SlidePart with ContentType: '{originalImagePart.ContentType}' and explicit ID.");
+                            Debug.WriteLine($"[DEBUG] CopyFooterFromMaster: Adding new ImagePart to SlidePart with ContentType: '{originalImagePart.ContentType}' and explicit ID.");
                             string newRelId = "rId" + Guid.NewGuid().ToString("N");
                             ImagePart newImagePart = slidePart.AddNewPart<ImagePart>(originalImagePart.ContentType, newRelId); 
                             using (var stream = originalImagePart.GetStream())
@@ -358,7 +358,7 @@ namespace SlideMergerAPINew.Services
                                 stream.CopyTo(newImagePart.GetStream());
                             }
                             pic.BlipFill.Blip.Embed = newRelId; // Use the explicitly generated ID
-                            Console.WriteLine($"[DEBUG] Imagem '{GetElementName(originalPic)}' copiada e RelationshipId atualizado para '{newRelId}'.");
+                            Debug.WriteLine($"[DEBUG] Imagem '{GetElementName(originalPic)}' copiada e RelationshipId atualizado para '{newRelId}'.");
                         }
                     }
                 }
@@ -381,7 +381,7 @@ namespace SlideMergerAPINew.Services
 
                             if (originalImagePart != null)
                             {
-                                Console.WriteLine($"[DEBUG] CopyFooterFromMaster: Adding nested ImagePart to SlidePart with ContentType: '{originalImagePart.ContentType}' and explicit ID.");
+                                Debug.WriteLine($"[DEBUG] CopyFooterFromMaster: Adding nested ImagePart to SlidePart with ContentType: '{originalImagePart.ContentType}' and explicit ID.");
                                 string newRelId = "rId" + Guid.NewGuid().ToString("N");
                                 ImagePart newImagePart = slidePart.AddNewPart<ImagePart>(originalImagePart.ContentType, newRelId); 
                                 using (var stream = originalImagePart.GetStream())
@@ -389,7 +389,7 @@ namespace SlideMergerAPINew.Services
                                     stream.CopyTo(newImagePart.GetStream());
                                 }
                                 descendantBlip.Embed = newRelId; // Use the explicitly generated ID
-                                Console.WriteLine($"[DEBUG] Imagem aninhada em grupo com ID '{originalImageRelId}' copiada e RelationshipId atualizado.");
+                                Debug.WriteLine($"[DEBUG] Imagem aninhada em grupo com ID '{originalImageRelId}' copiada e RelationshipId atualizado.");
                             }
                         }
                     }
@@ -412,7 +412,7 @@ namespace SlideMergerAPINew.Services
 
                         if (originalImagePart != null)
                         {
-                            Console.WriteLine($"[DEBUG] CopyFooterFromMaster: Adding GraphicFrame ImagePart to SlidePart with ContentType: '{originalImagePart.ContentType}' and explicit ID.");
+                            Debug.WriteLine($"[DEBUG] CopyFooterFromMaster: Adding GraphicFrame ImagePart to SlidePart with ContentType: '{originalImagePart.ContentType}' and explicit ID.");
                             string newRelId = "rId" + Guid.NewGuid().ToString("N");
                             ImagePart newImagePart = slidePart.AddNewPart<ImagePart>(originalImagePart.ContentType, newRelId); 
                             using (var stream = originalImagePart.GetStream())
@@ -420,22 +420,22 @@ namespace SlideMergerAPINew.Services
                                 stream.CopyTo(newImagePart.GetStream());
                             }
                             blip.Embed = newRelId; // Use the explicitly generated ID
-                            Console.WriteLine($"[DEBUG] SVG/Imagem '{GetElementName(graphicFrame)}' copiado e RelationshipId atualizado para '{newRelId}'.");
+                            Debug.WriteLine($"[DEBUG] SVG/Imagem '{GetElementName(graphicFrame)}' copiado e RelationshipId atualizado para '{newRelId}'.");
                         }
                     }
                 }
 
                 shapeTree.Append(clonedElement);
-                Console.WriteLine($"[DEBUG] Elemento '{GetElementName(clonedElement)}' copiado para o slide {slidePart.Uri.OriginalString}.");
+                Debug.WriteLine($"[DEBUG] Elemento '{GetElementName(clonedElement)}' copiado para o slide {slidePart.Uri.OriginalString}.");
             }
 
             slidePart.Slide!.Save();
-            Console.WriteLine($"[DEBUG] Slide {slidePart.Uri.OriginalString} salvo após tentativa de cópia do rodapé.");
+            Debug.WriteLine($"[DEBUG] Slide {slidePart.Uri.OriginalString} salvo após tentativa de cópia do rodapé.");
         }
 
         public static void AddFooterOverlayToSlide(SlidePart slidePart, SlideMasterPart masterPart, long footerLimitY)
         {
-            Console.WriteLine($"[DEBUG] Chamando CopyFooterFromMaster para o slide {slidePart.Uri.OriginalString}.");
+            Debug.WriteLine($"[DEBUG] Chamando CopyFooterFromMaster para o slide {slidePart.Uri.OriginalString}.");
             CopyFooterFromMaster(slidePart, masterPart, footerLimitY);
         }
 
@@ -482,33 +482,33 @@ namespace SlideMergerAPINew.Services
             foreach (var change in changes)
             {
                 change.element.SetAttribute(change.newAttr);
-                Console.WriteLine($"[DEBUG] Updated r:id from '{change.oldAttr.Value}' to '{change.newAttr.Value}' for element '{change.element.LocalName}' in part '{newPart.Uri.OriginalString}'.");
+                Debug.WriteLine($"[DEBUG] Updated r:id from '{change.oldAttr.Value}' to '{change.newAttr.Value}' for element '{change.element.LocalName}' in part '{newPart.Uri.OriginalString}'.");
             }
         }
 
         public async Task<SlideMergeResponse> MergeSlides(IFormFile destinationFile, SlideMergeRequest request)
         {
-            Console.WriteLine("[DEBUG] Iniciando MergeSlides.");
+            Debug.WriteLine("[DEBUG] Iniciando MergeSlides.");
             try
             {
-                Console.WriteLine("[DEBUG] Criando caminhos temporários.");
+                Debug.WriteLine("[DEBUG] Criando caminhos temporários.");
                 string tempDestinationPath = System.IO.Path.GetTempFileName() + ".pptx";
                 string outputPath = System.IO.Path.GetTempFileName() + ".pptx";
 
-                Console.WriteLine("[DEBUG] Copiando arquivo de destino para caminho temporário.");
+                Debug.WriteLine("[DEBUG] Copiando arquivo de destino para caminho temporário.");
                 using (var stream = new System.IO.FileStream(tempDestinationPath, System.IO.FileMode.Create))
                 {
                     await destinationFile.CopyToAsync(stream);
                 }
 
-                Console.WriteLine("[DEBUG] Copiando tempDestinationPath para outputPath.");
+                Debug.WriteLine("[DEBUG] Copiando tempDestinationPath para outputPath.");
                 System.IO.File.Copy(tempDestinationPath, outputPath, true);
 
-                Console.WriteLine("[DEBUG] Abrindo documentos de apresentação.");
+                Debug.WriteLine("[DEBUG] Abrindo documentos de apresentação.");
                 using (var destino = PresentationDocument.Open(outputPath, true))
                 using (var origem = PresentationDocument.Open(TemplatePath, false))
                 {
-                    Console.WriteLine("[DEBUG] Obtendo PresentationParts.");
+                    Debug.WriteLine("[DEBUG] Obtendo PresentationParts.");
                     var destinoPres = destino.PresentationPart!;
                     var origemPres = origem.PresentationPart!;
                     var destinoSlides = destinoPres.Presentation!.SlideIdList!;
@@ -521,7 +521,7 @@ namespace SlideMergerAPINew.Services
                         destinoSlides.Elements<SlideId>().Any() ? 
                         destinoSlides.Elements<SlideId>().Max(s => s.Id!.Value) + 1 : 256U;
 
-                    Console.WriteLine("[DEBUG] Processando primeiros slides.");
+                    Debug.WriteLine("[DEBUG] Processando primeiros slides.");
                     foreach (int i in primeiros)
                     {
                         var origemSlidePart = (SlidePart)origemPres.GetPartById(origemSlideIds[i].RelationshipId!);
@@ -530,12 +530,12 @@ namespace SlideMergerAPINew.Services
 
                         if (SlideWithTextExists(destinoPres, marcadorVerificacao))
                         {
-                            Console.WriteLine($"[DEBUG] Slide com marcador '{marcadorVerificacao}' já existe. Pulando.");
+                            Debug.WriteLine($"[DEBUG] Slide com marcador '{marcadorVerificacao}' já existe. Pulando.");
                             continue;
                         }
                         
                         string newSlideRelId = "rId" + Guid.NewGuid().ToString("N");
-                        Console.WriteLine($"[DEBUG] AddNewPart SlidePart com ContentType: '{origemSlidePart.ContentType}' e explicit ID: '{newSlideRelId}'");
+                        Debug.WriteLine($"[DEBUG] AddNewPart SlidePart com ContentType: '{origemSlidePart.ContentType}' e explicit ID: '{newSlideRelId}'");
                         SlidePart novoSlidePart = destinoPres.AddNewPart<SlidePart>(origemSlidePart.ContentType, newSlideRelId);
                         var slideRelIdMap = new Dictionary<string, string>(); // Map for this slide's internal relationships
 
@@ -551,7 +551,7 @@ namespace SlideMergerAPINew.Services
                             if (relatedPart is ImagePart originalImagePart)
                             {
                                 string newImageRelId = "rId" + Guid.NewGuid().ToString("N");
-                                Console.WriteLine($"[DEBUG] AddNewPart ImagePart with ContentType: '{originalImagePart.ContentType}' e explicit ID: '{newImageRelId}'");
+                                Debug.WriteLine($"[DEBUG] AddNewPart ImagePart with ContentType: '{originalImagePart.ContentType}' e explicit ID: '{newImageRelId}'");
                                 ImagePart newImagePart = novoSlidePart.AddNewPart<ImagePart>(originalImagePart.ContentType, newImageRelId); 
                                 using (Stream imageStream = originalImagePart.GetStream(FileMode.Open))
                                 {
@@ -575,16 +575,16 @@ namespace SlideMergerAPINew.Services
                             Id = novoId,
                             RelationshipId = newSlideRelId // Use the explicitly generated ID here
                         }, i);
-                        Console.WriteLine($"[DEBUG] Slide {i} adicionado com sucesso.");
+                        Debug.WriteLine($"[DEBUG] Slide {i} adicionado com sucesso.");
                     }
 
-                    Console.WriteLine("[DEBUG] Processando slide final (linkedin).");
+                    Debug.WriteLine("[DEBUG] Processando slide final (linkedin).");
                     if (!SlideWithTextExists(destinoPres, "linkedin.com/in/"))
                     {
                         var origemSlidePart = (SlidePart)origemPres.GetPartById(origemSlideIds[ultimoIdx].RelationshipId!);
                         
                         string newFinalSlideRelId = "rId" + Guid.NewGuid().ToString("N");
-                        Console.WriteLine($"[DEBUG] AddNewPart SlidePart (final) com ContentType: '{origemSlidePart.ContentType}' e explicit ID: '{newFinalSlideRelId}'");
+                        Debug.WriteLine($"[DEBUG] AddNewPart SlidePart (final) com ContentType: '{origemSlidePart.ContentType}' e explicit ID: '{newFinalSlideRelId}'");
                         SlidePart novoSlidePart = destinoPres.AddNewPart<SlidePart>(origemSlidePart.ContentType, newFinalSlideRelId);
                         var slideRelIdMap = new Dictionary<string, string>(); // Map for this slide's internal relationships
 
@@ -599,7 +599,7 @@ namespace SlideMergerAPINew.Services
                             if (relatedPart is ImagePart originalImagePart)
                             {
                                 string newImageRelId = "rId" + Guid.NewGuid().ToString("N");
-                                Console.WriteLine($"[DEBUG] AddNewPart ImagePart (final) com ContentType: '{originalImagePart.ContentType}' e explicit ID: '{newImageRelId}'");
+                                Debug.WriteLine($"[DEBUG] AddNewPart ImagePart (final) com ContentType: '{originalImagePart.ContentType}' e explicit ID: '{newImageRelId}'");
                                 ImagePart newImagePart = novoSlidePart.AddNewPart<ImagePart>(originalImagePart.ContentType, newImageRelId);
                                 using (Stream imageStream = originalImagePart.GetStream(FileMode.Open))
                                 {
@@ -620,10 +620,10 @@ namespace SlideMergerAPINew.Services
                             Id = NextSlideId(),
                             RelationshipId = newFinalSlideRelId // Use the explicitly generated ID here
                         });
-                        Console.WriteLine("[DEBUG] Slide final adicionado com sucesso.");
+                        Debug.WriteLine("[DEBUG] Slide final adicionado com sucesso.");
                     }
 
-                    Console.WriteLine("[DEBUG] Processando Slide Master e Layouts.");
+                    Debug.WriteLine("[DEBUG] Processando Slide Master e Layouts.");
                     var thirdSlide = (SlidePart)origemPres.GetPartById(origemSlideIds[2].RelationshipId!);
                     var layoutSrc = thirdSlide.SlideLayoutPart!;
                     var masterSrc = layoutSrc.SlideMasterPart!;
@@ -638,9 +638,9 @@ namespace SlideMergerAPINew.Services
 
                     if (existingMaster == null)
                     {
-                        Console.WriteLine("[DEBUG] Slide Master não existente. Copiando do template.");
+                        Debug.WriteLine("[DEBUG] Slide Master não existente. Copiando do template.");
                         string newMasterRelId = "rId" + Guid.NewGuid().ToString("N");
-                        Console.WriteLine($"[DEBUG] AddNewPart SlideMasterPart com ContentType: '{masterSrc.ContentType}' e explicit ID: '{newMasterRelId}'");
+                        Debug.WriteLine($"[DEBUG] AddNewPart SlideMasterPart com ContentType: '{masterSrc.ContentType}' e explicit ID: '{newMasterRelId}'");
                         masterDest = destinoPres.AddNewPart<SlideMasterPart>(masterSrc.ContentType, newMasterRelId);
                         var masterRelIdMap = new Dictionary<string, string>();
 
@@ -655,7 +655,7 @@ namespace SlideMergerAPINew.Services
                             if (relatedMasterSrcPart is ThemePart originalThemePart)
                             {
                                 string newThemeRelId = "rId" + Guid.NewGuid().ToString("N");
-                                Console.WriteLine($"[DEBUG] AddNewPart ThemePart com ContentType: '{originalThemePart.ContentType}' e explicit ID: '{newThemeRelId}'");
+                                Debug.WriteLine($"[DEBUG] AddNewPart ThemePart com ContentType: '{originalThemePart.ContentType}' e explicit ID: '{newThemeRelId}'");
                                 ThemePart newThemePart = masterDest.AddNewPart<ThemePart>(originalThemePart.ContentType, newThemeRelId);
                                 using (Stream themeStream = originalThemePart.GetStream(FileMode.Open))
                                 {
@@ -666,7 +666,7 @@ namespace SlideMergerAPINew.Services
                             else if (relatedMasterSrcPart is FontPart originalFontPart) 
                             {
                                 string newFontRelId = "rId" + Guid.NewGuid().ToString("N");
-                                Console.WriteLine($"[DEBUG] AddNewPart FontPart com ContentType: '{originalFontPart.ContentType}' e explicit ID: '{newFontRelId}'");
+                                Debug.WriteLine($"[DEBUG] AddNewPart FontPart com ContentType: '{originalFontPart.ContentType}' e explicit ID: '{newFontRelId}'");
                                 FontPart newFontPart = masterDest.AddNewPart<FontPart>(originalFontPart.ContentType, newFontRelId);
                                 using (Stream fontStream = originalFontPart.GetStream(FileMode.Open))
                                 {
@@ -681,7 +681,7 @@ namespace SlideMergerAPINew.Services
                         foreach (var laySrcPart in masterSrc.SlideLayoutParts) 
                         {
                             string newLayoutRelId = "rId" + Guid.NewGuid().ToString("N");
-                            Console.WriteLine($"[DEBUG] AddNewPart SlideLayoutPart com ContentType: '{laySrcPart.ContentType}' e explicit ID: '{newLayoutRelId}'");
+                            Debug.WriteLine($"[DEBUG] AddNewPart SlideLayoutPart com ContentType: '{laySrcPart.ContentType}' e explicit ID: '{newLayoutRelId}'");
                             SlideLayoutPart newLayoutPart = masterDest.AddNewPart<SlideLayoutPart>(laySrcPart.ContentType, newLayoutRelId);
                             var layoutRelIdMap = new Dictionary<string, string>();
                             using (Stream stream = laySrcPart.GetStream(FileMode.Open))
@@ -695,7 +695,7 @@ namespace SlideMergerAPINew.Services
                                 if (relatedLayoutSrcPart is ImagePart originalLayoutImagePart)
                                 {
                                     string newLayoutImageRelId = "rId" + Guid.NewGuid().ToString("N");
-                                    Console.WriteLine($"[DEBUG] AddNewPart ImagePart (layout) com ContentType: '{originalLayoutImagePart.ContentType}' e explicit ID: '{newLayoutImageRelId}'");
+                                    Debug.WriteLine($"[DEBUG] AddNewPart ImagePart (layout) com ContentType: '{originalLayoutImagePart.ContentType}' e explicit ID: '{newLayoutImageRelId}'");
                                     ImagePart newLayoutImagePart = newLayoutPart.AddNewPart<ImagePart>(originalLayoutImagePart.ContentType, newLayoutImageRelId);
                                     using (Stream imgStream = originalLayoutImagePart.GetStream(FileMode.Open))
                                     {
@@ -710,7 +710,7 @@ namespace SlideMergerAPINew.Services
                             if ((newLayoutPart.SlideLayout.Type?.Value.ToString() ?? "default") == layoutName)
                             {
                                 layoutDest = newLayoutPart;
-                                Console.WriteLine($"[DEBUG] Layout '{layoutName}' encontrado e definido como destino.");
+                                Debug.WriteLine($"[DEBUG] Layout '{layoutName}' encontrado e definido como destino.");
                             }
                         }
 
@@ -726,28 +726,28 @@ namespace SlideMergerAPINew.Services
                             Id = nextMasterId,
                             RelationshipId = newMasterRelId // Use the explicitly generated ID here
                         });
-                        Console.WriteLine("[DEBUG] Slide Master adicionado ao PresentationPart de destino.");
+                        Debug.WriteLine("[DEBUG] Slide Master adicionado ao PresentationPart de destino.");
                     }
                     else
                     {
                         masterDest = existingMaster;
                         layoutDest = masterDest.SlideLayoutParts
                             .First(l => (l.SlideLayout.Type?.Value.ToString() ?? "default") == layoutName);
-                        Console.WriteLine("[DEBUG] Usando Slide Master existente.");
+                        Debug.WriteLine("[DEBUG] Usando Slide Master existente.");
                     }
 
                     var currentSlideIdsInDest = destinoSlides.Elements<SlideId>().ToList();
                     
                     var footerLimitY = GetFooterStartY(destino);
 
-                    Console.WriteLine("[DEBUG] Iterando sobre slides para aplicar layout e rodapé.");
+                    Debug.WriteLine("[DEBUG] Iterando sobre slides para aplicar layout e rodapé.");
                     for (int i = 0; i < currentSlideIdsInDest.Count; i++)
                     {
                         var slidePart = (SlidePart)destinoPres.GetPartById(currentSlideIdsInDest[i].RelationshipId!);
 
                         if (i < 2 || i == currentSlideIdsInDest.Count - 1)
                         {
-                             Console.WriteLine($"[DEBUG] Ignorando aplicação de layout ou rodapé para slide index {i}.");
+                             Debug.WriteLine($"[DEBUG] Ignorando aplicação de layout ou rodapé para slide index {i}.");
                              continue;
                         }
 
@@ -760,30 +760,30 @@ namespace SlideMergerAPINew.Services
                         }
                         else
                         {
-                            Console.WriteLine($"[WARNING] layoutDest é nulo para o slide {slidePart.Uri.OriginalString}. Layout não aplicado.");
+                            Debug.WriteLine($"[WARNING] layoutDest é nulo para o slide {slidePart.Uri.OriginalString}. Layout não aplicado.");
                         }
                         slidePart.Slide!.Save(); 
 
-                        Console.WriteLine($"[DEBUG] Aplicando rodapé ao slide {slidePart.Uri.OriginalString} (index {i}).");
+                        Debug.WriteLine($"[DEBUG] Aplicando rodapé ao slide {slidePart.Uri.OriginalString} (index {i}).");
                         AddFooterOverlayToSlide(slidePart, masterSrc, footerLimitY);
                         
                         if (HasContentOverlappingFooter(slidePart, footerLimitY))
                         {
-                            Console.WriteLine($"[DEBUG] Conteúdo sobreposto ao rodapé detectado no slide {slidePart.Uri.OriginalString}. Considere ajustar o conteúdo existente.");
+                            Debug.WriteLine($"[DEBUG] Conteúdo sobreposto ao rodapé detectado no slide {slidePart.Uri.OriginalString}. Considere ajustar o conteúdo existente.");
                         }
                     }
                     
-                    Console.WriteLine("[DEBUG] Aplicando numeração de página.");
+                    Debug.WriteLine("[DEBUG] Aplicando numeração de página.");
                     ApplyPageNumbering(destinoPres); // Esta chamada agora apenas garante a visibilidade geral do número do slide.
-                    Console.WriteLine("[DEBUG] Salvando apresentação de destino.");
+                    Debug.WriteLine("[DEBUG] Salvando apresentação de destino.");
                     destinoPres.Presentation!.Save(); 
                 }
 
-                Console.WriteLine("[DEBUG] Deletando arquivos temporários.");
+                Debug.WriteLine("[DEBUG] Deletando arquivos temporários.");
                 System.IO.File.Delete(tempDestinationPath);
 
                 string outputNormalizedPath = System.IO.Path.GetTempFileName() + ".pptx";
-                Console.WriteLine("[DEBUG] Normalizando com Python.");
+                Debug.WriteLine("[DEBUG] Normalizando com Python.");
                 await NormalizarComPythonAsync(outputPath, outputNormalizedPath);
 
                 System.IO.File.Delete(outputPath);
@@ -791,7 +791,7 @@ namespace SlideMergerAPINew.Services
                 var fileName = System.IO.Path.GetFileName(outputNormalizedPath);
                 var downloadUrl = outputNormalizedPath;
 
-                Console.WriteLine("[DEBUG] Processamento concluído com sucesso.");
+                Debug.WriteLine("[DEBUG] Processamento concluído com sucesso.");
                 return new SlideMergeResponse
                 {
                     Success = true,
@@ -802,8 +802,8 @@ namespace SlideMergerAPINew.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERROR] Exceção capturada: {ex.Message}");
-                Console.WriteLine($"[ERROR] Stack Trace: {ex.StackTrace}");
+                Debug.WriteLine($"[ERROR] Exceção capturada: {ex.Message}");
+                Debug.WriteLine($"[ERROR] Stack Trace: {ex.StackTrace}");
                 return new SlideMergeResponse
                 {
                     Success = false,
