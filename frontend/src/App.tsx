@@ -14,6 +14,7 @@ type FormData = {
   professor: string;
   linkedinUrl: string;
   curso: string;
+  agradecimento: string;
   arquivo: File | null;
 };
 
@@ -28,6 +29,7 @@ export default function App() {
     professor: '',
     linkedinUrl: '',
     curso: '',
+    agradecimento: '',
     arquivo: null
   });
   const [progress, setProgress] = useState(0);
@@ -87,6 +89,7 @@ export default function App() {
       formDataToSend.append('tituloAula', formData.titulo);
       formDataToSend.append('nomeProfessor', formData.professor);
       formDataToSend.append('linkedinPerfil', formData.linkedinUrl);
+      formDataToSend.append('agradecimento', formData.agradecimento);
       formDataToSend.append('destinationFile', formData.arquivo);
 
       // Simular progresso enquanto faz a requisição
@@ -139,6 +142,7 @@ export default function App() {
       professor: '',
       linkedinUrl: '',
       curso: '',
+      agradecimento: '',
       arquivo: null
     });
     setProgress(0);
@@ -223,6 +227,23 @@ export default function App() {
                 className="h-12 border-gray-200 focus:border-gray-900 focus:ring-gray-900 rounded-lg"
                 placeholder="https://linkedin.com/in/professor"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="agradecimento" className="text-gray-700">Agradecimento</Label>
+              <Select value={formData.agradecimento} onValueChange={(value) => handleInputChange('agradecimento', value)}>
+                <SelectTrigger className="h-12 border-gray-200 focus:border-gray-900 focus:ring-gray-900 rounded-lg">
+                  <SelectValue placeholder="Selecione o Agradecimento" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem key="agradecimento1" value="1">
+                      Obrigado
+                    </SelectItem>
+                    <SelectItem key="agradecimento2" value="2">
+                      Obrigada
+                    </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

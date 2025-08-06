@@ -17,6 +17,9 @@ namespace SlideMergerAPINew.Models
         public string NomeProfessor { get; set; } = string.Empty;
 
         [Required]
+        public string Agradecimento { get; set; } = string.Empty;
+
+        [Required]
         public string LinkedinPerfil { get; set; } = string.Empty;
     }
 }

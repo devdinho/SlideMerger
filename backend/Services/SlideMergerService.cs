@@ -453,6 +453,68 @@ namespace SlideMergerAPINew.Services
             return null;
         }
 
+        private static void AddClickableHyperlinkToText(SlidePart slidePart, string searchText, string url)
+        {
+            if (slidePart == null || string.IsNullOrWhiteSpace(searchText) || string.IsNullOrWhiteSpace(url))
+                return;
+
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                url = "https://" + url;
+            }
+
+            var existingRel = slidePart.HyperlinkRelationships
+                .FirstOrDefault(h => string.Equals(h.Uri.ToString(), url, StringComparison.OrdinalIgnoreCase));
+
+            string relId = existingRel?.Id ?? slidePart.AddHyperlinkRelationship(new Uri(url), true).Id;
+
+            // Encontra parágrafos que contenham o texto alvo
+            var paragraphs = slidePart.Slide.Descendants<D.Paragraph>()
+                .Where(p => p.InnerText != null && p.InnerText.Contains(searchText))
+                .ToList();
+
+            foreach (var paragraph in paragraphs)
+            {
+                // cria texto e garante xml:space="preserve" (para manter espaços)
+                var linkText = new D.Text(searchText);
+                linkText.SetAttribute(new OpenXmlAttribute("xml", "space", "http://www.w3.org/XML/1998/namespace", "preserve"));
+
+                // cria run properties com hyperlink
+                var runProps = new D.RunProperties();
+                runProps.Append(new D.HyperlinkOnClick() { Id = relId });
+
+                // cria run com o texto
+                var newRun = new D.Run(runProps, linkText);
+
+                // Remove runs antigos e insere o novo run
+                paragraph.RemoveAllChildren<D.Run>();
+                paragraph.AppendChild(newRun);
+            }
+
+            // Fallback: se não encontrou parágrafos inteiros, tenta por runs
+            if (!paragraphs.Any())
+            {
+                var textNodes = slidePart.Slide.Descendants<D.Text>()
+                    .Where(t => t.Text != null && t.Text.Contains(searchText))
+                    .ToList();
+
+                foreach (var t in textNodes)
+                {
+                    var run = t.Ancestors<D.Run>().FirstOrDefault();
+                    if (run != null)
+                    {
+                        var rp = run.RunProperties ??= new D.RunProperties();
+                        rp.RemoveAllChildren<D.HyperlinkOnClick>();
+                        rp.Append(new D.HyperlinkOnClick() { Id = relId });
+                    }
+                }
+            }
+
+            slidePart.Slide.Save();
+        }
+
+
         public async Task<SlideMergeResponse> MergeSlides(IFormFile destinationFile, SlideMergeRequest request)
         {
             Console.WriteLine("[DEBUG] Iniciando MergeSlides.");
@@ -535,64 +597,41 @@ namespace SlideMergerAPINew.Services
 
                         if (shouldAddFromTemplate)
                         {
-                            string newSlideRelId = "rId" + Guid.NewGuid().ToString("N");
-                            Console.WriteLine($"[DEBUG] AddNewPart SlidePart com ContentType: '{origemSlidePart.ContentType}' e explicit ID: '{newSlideRelId}'");
-                            SlidePart novoSlidePart = destinoPres.AddNewPart<SlidePart>(origemSlidePart.ContentType, newSlideRelId);
-                            var slideRelIdMap = new Dictionary<string, string>();
+                            Console.WriteLine($"[DEBUG] Copiando SlidePart do template (índice {i}).");
+                            SlidePart novoSlidePart = destinoPres.AddPart(origemSlidePart);
 
-                            using (Stream stream = origemSlidePart.GetStream(FileMode.Open))
-                            {
-                                novoSlidePart.FeedData(stream);
-                            }
-
-                            foreach (var partPair in origemSlidePart.Parts)
-                            {
-                                OpenXmlPart relatedPart = partPair.OpenXmlPart;
-                                if (relatedPart is ImagePart originalImagePart)
-                                {
-                                    string newImageRelId = "rId" + Guid.NewGuid().ToString("N");
-                                    Console.WriteLine($"[DEBUG] AddNewPart ImagePart with ContentType: '{originalImagePart.ContentType}' e explicit ID: '{newImageRelId}'");
-                                    ImagePart newImagePart = novoSlidePart.AddNewPart<ImagePart>(originalImagePart.ContentType, newImageRelId);
-                                    using (Stream imageStream = originalImagePart.GetStream(FileMode.Open))
-                                    {
-                                        newImagePart.FeedData(imageStream);
-                                    }
-                                    slideRelIdMap[partPair.RelationshipId] = newImageRelId;
-                                }
-                            }
-                            UpdatePartRelationships(novoSlidePart, slideRelIdMap);
-
-                            uint novoId = NextSlideId();
-
-                            // Aplica as substituições de texto e cor ao slide recém-adicionado
                             if (i == 0) // Slide "Prof"
                             {
+                                var prof = request.Agradecimento == "1" ? "Prof" : "Profa";
+
                                 ReplaceTextColor(novoSlidePart, "NOMEMBA", request.Theme);
                                 ReplaceTextInSlide(novoSlidePart, "NOMEMBA", request.Mba.ToUpper());
                                 ReplaceTextInSlide(novoSlidePart, "Título da aula/disciplina", request.TituloAula);
-                                ReplaceTextInSlide(novoSlidePart, "Nome do(a) Professor(a)", $"Prof(a) {request.NomeProfessor}");
+                                ReplaceTextInSlide(novoSlidePart, "Nome do(a) Professor(a)", $"{prof} {request.NomeProfessor}");
                             }
                             else if (i == 1) // Slide "Lei nº 9610/98"
                             {
-                                ReplaceTextArea(novoSlidePart, "Lei nº 9610/98", request.Theme); // Garante a cor correta para o novo slide
-                                // Outras substituições de texto se houverem
+                                ReplaceTextArea(novoSlidePart, "Lei nº 9610/98", request.Theme); // garante cor correta
                             }
 
-
+                            uint novoId = NextSlideId();
+                            var relIdOfNew = destinoPres.GetIdOfPart(novoSlidePart);
                             destinoSlides.InsertAt(new SlideId
                             {
                                 Id = novoId,
-                                RelationshipId = newSlideRelId
+                                RelationshipId = relIdOfNew
                             }, i);
-                            Console.WriteLine($"[DEBUG] Slide {i} adicionado com sucesso do template.");
+
+                            Console.WriteLine($"[DEBUG] Slide {i+1} adicionado com sucesso do template (relId {relIdOfNew}).");
                         }
+
                     }
 
                     Console.WriteLine("[DEBUG] Processando slide final (linkedin).");
 
                     bool temSlideProfessor = SlideWithTextExists(destinoPres, $"Prof(a) {request.NomeProfessor}");
                     bool temSlideLinkedin = SlideWithTextExists(destinoPres, request.LinkedinPerfil);
-                    bool temSlideObrigado = SlideWithTextExists(destinoPres, "Obrigado(a)!");
+                    bool temSlideObrigado = SlideWithTextExists(destinoPres, "Obrigado!") || SlideWithTextExists(destinoPres, "Obrigada!");
 
                     if (temSlideProfessor && temSlideLinkedin && temSlideObrigado)
                     {
@@ -611,47 +650,24 @@ namespace SlideMergerAPINew.Services
                             }
                         }
 
-                        // Agora sim adiciona o slide completo
                         var origemSlidePart = (SlidePart)origemPres.GetPartById(origemSlideIds[ultimoIdx].RelationshipId!);
+                        SlidePart novoSlidePart = destinoPres.AddPart(origemSlidePart);
 
-                        string newFinalSlideRelId = "rId" + Guid.NewGuid().ToString("N");
-                        Console.WriteLine($"[DEBUG] AddNewPart SlidePart (final) com ContentType: '{origemSlidePart.ContentType}' e explicit ID: '{newFinalSlideRelId}'");
-                        SlidePart novoSlidePart = destinoPres.AddNewPart<SlidePart>(origemSlidePart.ContentType, newFinalSlideRelId);
-                        var slideRelIdMap = new Dictionary<string, string>();
-
-                        using (Stream stream = origemSlidePart.GetStream(FileMode.Open))
-                        {
-                            novoSlidePart.FeedData(stream);
-                        }
-
-                        foreach (var partPair in origemSlidePart.Parts)
-                        {
-                            if (partPair.OpenXmlPart is ImagePart originalImagePart)
-                            {
-                                string newImageRelId = "rId" + Guid.NewGuid().ToString("N");
-                                Console.WriteLine($"[DEBUG] AddNewPart ImagePart (final) com ContentType: '{originalImagePart.ContentType}' e explicit ID: '{newImageRelId}'");
-                                ImagePart newImagePart = novoSlidePart.AddNewPart<ImagePart>(originalImagePart.ContentType, newImageRelId);
-                                using (Stream imageStream = originalImagePart.GetStream(FileMode.Open))
-                                {
-                                    newImagePart.FeedData(imageStream);
-                                }
-                                slideRelIdMap[partPair.RelationshipId] = newImageRelId;
-                            }
-                        }
-
-                        UpdatePartRelationships(novoSlidePart, slideRelIdMap);
-
-                        ReplaceTextInSlide(novoSlidePart, "Nome do(a) Professor(a)", $"Prof(a) {request.NomeProfessor}");
+                        // Faz as substituições
+                        var prof = request.Agradecimento == "1" ? "Prof" : "Profa";
+                        var agradecimento = request.Agradecimento == "1" ? "Obrigado!" : "Obrigada!";
+                        ReplaceTextInSlide(novoSlidePart, "Agradecimento", agradecimento);
+                        ReplaceTextInSlide(novoSlidePart, "Nome do(a) Professor(a)", $"{prof} {request.NomeProfessor}");
                         ReplaceTextColor(novoSlidePart, "linkedin.perfil.com", request.Theme);
                         ReplaceTextInSlide(novoSlidePart, "linkedin.perfil.com", request.LinkedinPerfil);
+                        AddClickableHyperlinkToText(novoSlidePart, request.LinkedinPerfil, request.LinkedinPerfil);
 
                         destinoSlides.Append(new SlideId
                         {
                             Id = NextSlideId(),
-                            RelationshipId = newFinalSlideRelId
+                            RelationshipId = destinoPres.GetIdOfPart(novoSlidePart)
                         });
 
-                        Console.WriteLine("[DEBUG] Slide final adicionado com sucesso.");
                     }
 
                     Console.WriteLine("[DEBUG] Processando Slide Master e Layouts.");
